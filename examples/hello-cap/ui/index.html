@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hello CAP</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
+      .card { padding: 16px; border: 1px solid #ddd; border-radius: 12px; max-width: 900px; }
+      code { background: #f6f6f6; padding: 2px 6px; border-radius: 6px; }
+      pre { background: #0b1020; color: #e8e8e8; padding: 12px; border-radius: 10px; overflow: auto; }
+      button { padding: 8px 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff; cursor: pointer; }
+      button:hover { background: #f7f7f7; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+      input { padding: 8px 10px; border-radius: 10px; border: 1px solid #ccc; }
+      .muted { color: #666; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Hello CAP</h1>
+      <p class="muted">
+        This is a minimal CAP demo:
+        <code>cap://</code> custom protocol serving assets + a small capability API via <code>window.CAP</code>.
+      </p>
+
+      <div class="row">
+        <input id="name" value="Hunter" />
+        <button id="btn">Invoke WASM greet</button>
+      </div>
+
+      <h3>Output</h3>
+      <pre id="out">Starting…</pre>
+
+      <p class="muted">
+        Tip: inspect the package by running <code>cap inspect examples/hello-cap/hello-cap.cap</code>
+      </p>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

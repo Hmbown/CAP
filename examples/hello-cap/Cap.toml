@@ -1,0 +1,16 @@
+cap_version = 1
+
+[app]
+id = "com.example.hello-cap"
+name = "Hello CAP"
+version = "0.1.0"
+publisher = "Example Publisher"
+description = "Minimal CAP demo app (UI + optional WASM core + KV capability)"
+min_runtime = "cap-runtime>=0.1"
+
+[entrypoints]
+ui = "ui/index.html"
+core_wasm = "core/hello_cap_core.wasm"
+
+[capabilities.kv_store]
+persistent = true

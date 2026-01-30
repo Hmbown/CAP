@@ -1,0 +1,21 @@
+[package]
+name = "cap-runtime-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Reference CAP desktop runtime (system WebView via wry)"
+repository = "https://example.invalid/cap"
+
+[lib]
+name = "cap_runtime_desktop"
+path = "src/lib.rs"
+
+[dependencies]
+cap-format = { path = "../cap-format" }
+wry = { version = "0.54", features = ["protocol"] }
+http = "1"
+mime_guess = "2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+directories = "5"
+parking_lot = "0.12"

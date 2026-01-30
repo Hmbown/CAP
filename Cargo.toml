@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/cap-format",
+  "crates/cap-core-sdk",
+  "crates/cap-runtime-desktop",
+  "crates/cap-cli",
+  "examples/hello-cap/core",
+]
+
+[workspace.package]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Hmbown/cap"
