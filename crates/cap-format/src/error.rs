@@ -25,6 +25,12 @@ pub enum CapError {
 
     #[error("invalid cap: {0}")]
     Invalid(String),
+
+    #[error("validation error: {0}")]
+    Validation(String),
+
+    #[error("missing entrypoint: {0}")]
+    MissingEntrypoint(String),
 }
 
 pub type Result<T> = std::result::Result<T, CapError>;

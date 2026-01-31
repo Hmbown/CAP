@@ -2,12 +2,12 @@ use crate::error::{CapError, Result};
 use crate::index::{compute_root, sha256_bytes, FileEntry, Index};
 use crate::manifest::Manifest;
 
-use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use ed25519_dalek::Signer;
+use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
-use std::io::{Read, Seek, Write};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use zip::write::SimpleFileOptions;
@@ -84,12 +84,31 @@ pub fn build_cap_from_manifest(
                 size: raw.len() as u64,
                 compressed_size: compressed_len as u64,
                 compression: "zstd".into(),
-                mime: None,
+                mime: mime_guess::from_path(vpath).first().map(|m| m.to_string()),
             },
         );
     }
 
     let index = Index { files: index_files };
+
+    // Validate that declared entrypoints exist in the built index.
+    let ui_vpath = normalize_virtual_path(&ui_entry_rel);
+    if !index.files.contains_key(&ui_vpath) {
+        return Err(CapError::MissingEntrypoint(format!(
+            "UI entrypoint '{}' not found in built index",
+            ui_vpath
+        )));
+    }
+    if let Some(core_rel) = &manifest.entrypoints.core_wasm {
+        let core_vpath = normalize_virtual_path(&PathBuf::from(core_rel));
+        if !index.files.contains_key(&core_vpath) {
+            return Err(CapError::MissingEntrypoint(format!(
+                "core_wasm entrypoint '{}' not found in built index",
+                core_vpath
+            )));
+        }
+    }
+
     let manifest_cbor = manifest.to_cbor_bytes()?;
     let manifest_hash = sha256_bytes(&manifest_cbor);
     let root = compute_root(manifest_hash, &index)?;
@@ -134,9 +153,16 @@ pub fn build_cap_from_manifest(
     Ok(())
 }
 
-fn collect_dir_files(project_root: &Path, dir: &Path, out: &mut Vec<(String, PathBuf)>) -> Result<()> {
+fn collect_dir_files(
+    project_root: &Path,
+    dir: &Path,
+    out: &mut Vec<(String, PathBuf)>,
+) -> Result<()> {
     if !dir.exists() {
-        return Err(CapError::Invalid(format!("directory not found: {}", dir.display())));
+        return Err(CapError::Invalid(format!(
+            "directory not found: {}",
+            dir.display()
+        )));
     }
     for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
         let p = entry.path();
@@ -152,7 +178,13 @@ fn collect_dir_files(project_root: &Path, dir: &Path, out: &mut Vec<(String, Pat
 fn path_relative(base: &Path, path: &Path) -> Result<PathBuf> {
     path.strip_prefix(base)
         .map(|p| p.to_path_buf())
-        .map_err(|_| CapError::Invalid(format!("path {} not under {}", path.display(), base.display())))
+        .map_err(|_| {
+            CapError::Invalid(format!(
+                "path {} not under {}",
+                path.display(),
+                base.display()
+            ))
+        })
 }
 
 fn normalize_virtual_path(p: &Path) -> String {
@@ -185,6 +217,11 @@ impl CapReader {
 
         let index_cbor = read_zip_bytes(&mut archive, "_cap/index.cbor")?;
         let index = Index::from_cbor_bytes(&index_cbor)?;
+
+        // Validate all index paths against path traversal
+        for path in index.files.keys() {
+            validate_zip_entry_name(path)?;
+        }
 
         let root_hex = String::from_utf8(read_zip_bytes(&mut archive, "_cap/root.sha256")?)
             .map_err(|e| CapError::Invalid(format!("root.sha256 utf8: {e}")))?;
@@ -239,21 +276,29 @@ impl CapReader {
 
         let pk = pubkey_override
             .or(self.publisher_pk.as_ref())
-            .ok_or_else(|| CapError::Invalid("no publisher public key provided or embedded".into()))?;
+            .ok_or_else(|| {
+                CapError::Invalid("no publisher public key provided or embedded".into())
+            })?;
 
         let sig = Signature::from_bytes(&self.signature);
         pk.verify_strict(&self.root, &sig)
             .map_err(|e| CapError::Signature(e.to_string()))?;
 
         if full {
-            for (path, entry) in self.index.files.iter() {
+            let entries: Vec<(String, String)> = self
+                .index
+                .files
+                .iter()
+                .map(|(path, entry)| (path.clone(), entry.hash.clone()))
+                .collect();
+            for (path, expected_hash) in &entries {
                 let raw = self.read_virtual_file(path)?;
                 let h = sha256_bytes(&raw);
                 let hexh = hex::encode(h);
-                if hexh != entry.hash {
+                if hexh != *expected_hash {
                     return Err(CapError::Invalid(format!(
                         "hash mismatch for {}: expected {}, got {}",
-                        path, entry.hash, hexh
+                        path, expected_hash, hexh
                     )));
                 }
             }
@@ -263,6 +308,7 @@ impl CapReader {
 
     /// Read a virtual file (decompressed raw bytes).
     pub fn read_virtual_file(&mut self, vpath: &str) -> Result<Vec<u8>> {
+        validate_zip_entry_name(vpath)?;
         let entry = self
             .index
             .files
@@ -277,20 +323,53 @@ impl CapReader {
 
     /// Convenience: load all files under a prefix into memory.
     pub fn read_prefix(&mut self, prefix: &str) -> Result<BTreeMap<String, Vec<u8>>> {
+        let paths: Vec<String> = self
+            .index
+            .files
+            .keys()
+            .filter(|p| p.starts_with(prefix))
+            .cloned()
+            .collect();
         let mut out = BTreeMap::new();
-        for path in self.index.files.keys() {
-            if path.starts_with(prefix) {
-                out.insert(path.clone(), self.read_virtual_file(path)?);
-            }
+        for path in &paths {
+            out.insert(path.clone(), self.read_virtual_file(path)?);
         }
         Ok(out)
     }
 }
 
+/// Validate a ZIP entry name against path traversal attacks.
+///
+/// Rejects names containing null bytes, absolute paths, or `..` components.
+pub fn validate_zip_entry_name(name: &str) -> Result<()> {
+    if name.contains('\0') {
+        return Err(CapError::Invalid(format!(
+            "ZIP entry name contains null byte: {:?}",
+            name
+        )));
+    }
+    if name.starts_with('/') || name.starts_with('\\') {
+        return Err(CapError::Invalid(format!(
+            "ZIP entry name is an absolute path: {:?}",
+            name
+        )));
+    }
+    // Check for .. traversal — split on both / and \
+    for component in name.split(['/', '\\']) {
+        if component == ".." {
+            return Err(CapError::Invalid(format!(
+                "ZIP entry name contains path traversal: {:?}",
+                name
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn read_zip_bytes(archive: &mut ZipArchive<File>, name: &str) -> Result<Vec<u8>> {
+    validate_zip_entry_name(name)?;
     let mut f = archive.by_name(name)?;
     let mut buf = Vec::with_capacity(f.size() as usize);
     f.read_to_end(&mut buf)?;
     Ok(buf)
 }
-

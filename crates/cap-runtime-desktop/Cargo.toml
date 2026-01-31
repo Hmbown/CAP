@@ -13,9 +13,15 @@ path = "src/lib.rs"
 [dependencies]
 cap-format = { path = "../cap-format" }
 wry = { version = "0.54", features = ["protocol"] }
+tao = "0.34"
 http = "1"
 mime_guess = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 directories = "5"
 parking_lot = "0.12"
+ureq = "2"
+url = "2"
+base64 = "0.22"
+notify-rust = "4"
+keyring = "3"

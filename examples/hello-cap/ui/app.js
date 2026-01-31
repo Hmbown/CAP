@@ -23,6 +23,28 @@ async function main() {
       await window.CAP.kv.set("last_open", now);
       const v = await window.CAP.kv.get("last_open");
       log(`kv_store:last_open = ${v}`);
+
+      // Demonstrate filesystem capability
+      if (window.CAP.fs) {
+        try {
+          const greeting = `Hello from CAP at ${new Date().toISOString()}`;
+          await window.CAP.fs.write("documents://com.example.hello-cap/hello.txt", greeting);
+          const content = await window.CAP.fs.read("documents://com.example.hello-cap/hello.txt");
+          log(`fs: wrote and read back: ${content}`);
+        } catch (e) {
+          log(`fs failed: ${e}`);
+        }
+      }
+
+      // Demonstrate network capability
+      if (window.CAP.net) {
+        try {
+          const resp = await window.CAP.net.fetch("https://httpbin.org/get");
+          log(`net.fetch status: ${resp.status}`);
+        } catch (e) {
+          log(`net.fetch failed: ${e}`);
+        }
+      }
     } catch (e) {
       log(`CAP ping/kv failed: ${e}`);
     }

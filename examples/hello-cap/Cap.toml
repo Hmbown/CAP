@@ -14,3 +14,9 @@ core_wasm = "core/hello_cap_core.wasm"
 
 [capabilities.kv_store]
 persistent = true
+
+[capabilities.network]
+allow = ["https://httpbin.org"]
+
+[capabilities.filesystem]
+scopes = ["documents://com.example.hello-cap/*"]
