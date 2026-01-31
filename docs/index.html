@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CAP — Capability Application Package</title>
+  <meta name="description" content="A signed, content-addressed app bundle format with explicit capability declarations.">
+  <style>
+    :root {
+      --fg: #1a1a1a;
+      --fg-muted: #555;
+      --bg: #fff;
+      --bg-code: #f5f5f5;
+      --border: #e0e0e0;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e5e5e5;
+        --fg-muted: #999;
+        --bg: #111;
+        --bg-code: #1a1a1a;
+        --border: #333;
+        --accent: #60a5fa;
+        --accent-hover: #93bbfd;
+      }
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: var(--font-sans);
+      color: var(--fg);
+      background: var(--bg);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    header {
+      padding: 80px 0 48px;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+
+    header h1 code {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    header p {
+      font-size: 1.125rem;
+      color: var(--fg-muted);
+      max-width: 560px;
+    }
+
+    .status {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 4px 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--fg-muted);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+    }
+
+    .links {
+      margin-top: 24px;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .links a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+
+    .links a:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+    }
+
+    section {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+    }
+
+    section h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      letter-spacing: -0.01em;
+    }
+
+    section p, section li {
+      color: var(--fg-muted);
+      margin-bottom: 8px;
+    }
+
+    section ul {
+      padding-left: 20px;
+    }
+
+    section li {
+      margin-bottom: 6px;
+    }
+
+    section li strong {
+      color: var(--fg);
+    }
+
+    pre {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.7;
+      margin: 16px 0;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+    }
+
+    .anatomy {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 0.9rem;
+    }
+
+    .anatomy th, .anatomy td {
+      text-align: left;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .anatomy th {
+      font-weight: 600;
+      color: var(--fg);
+    }
+
+    .anatomy td {
+      color: var(--fg-muted);
+    }
+
+    .anatomy td code {
+      font-size: 0.85em;
+      color: var(--fg);
+    }
+
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      color: var(--fg-muted);
+      font-size: 0.85rem;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>CAP <code>.cap</code></h1>
+      <p>A signed, content-addressed app bundle format. One file that can be inspected, verified, cached, delta-updated, and run in a sandboxed runtime.</p>
+      <span class="status">Early-stage spec + reference implementation</span>
+      <div class="links">
+        <a href="https://github.com/Hmbown/cap">GitHub</a>
+        <a href="https://github.com/Hmbown/cap/blob/main/spec/CAP-1.0.md">Specification</a>
+        <a href="https://github.com/Hmbown/cap/tree/main/examples/hello-cap">Example app</a>
+      </div>
+    </header>
+
+    <section>
+      <h2>What problem does this solve?</h2>
+      <p>Most app distribution today involves opaque blobs with ambient authority &mdash; the app can do whatever the OS lets it. You can't easily inspect what's inside, verify who built it, or enforce what it's allowed to do.</p>
+      <p>CAP packages apps as content-addressed, signed bundles with explicit capability declarations. The runtime enforces what the app declared &mdash; network access, filesystem, key-value storage, notifications &mdash; nothing more. Think of it as the intersection of Flatpak's sandboxing model and the web's content-addressability, in a single portable file.</p>
+    </section>
+
+    <section>
+      <h2>Anatomy of a <code>.cap</code> file</h2>
+      <table class="anatomy">
+        <tr>
+          <th>Layer</th>
+          <th>What's inside</th>
+        </tr>
+        <tr>
+          <td><strong>UI</strong></td>
+          <td>HTML, JS, CSS &mdash; served via a custom protocol in a system WebView</td>
+        </tr>
+        <tr>
+          <td><strong>Core</strong></td>
+          <td>Optional WASM module with a stable <code>cap_invoke</code> ABI</td>
+        </tr>
+        <tr>
+          <td><strong>Manifest</strong></td>
+          <td>CBOR-encoded app identity, capability declarations, entrypoints</td>
+        </tr>
+        <tr>
+          <td><strong>Index</strong></td>
+          <td>File-to-hash mapping for content verification</td>
+        </tr>
+        <tr>
+          <td><strong>Blobs</strong></td>
+          <td>Content-addressed, zstd-compressed file payloads (<code>blobs/&lt;sha256&gt;.zst</code>)</td>
+        </tr>
+        <tr>
+          <td><strong>Signature</strong></td>
+          <td>Ed25519 signature over the root hash (manifest + index)</td>
+        </tr>
+      </table>
+    </section>
+
+    <section>
+      <h2>Basic workflow</h2>
+<pre><span style="color:var(--fg-muted)"># Install the CLI from source</span>
+cargo install --path crates/cap-cli
+
+<span style="color:var(--fg-muted)"># Generate a publisher keypair</span>
+cap keys generate --out ./keys
+
+<span style="color:var(--fg-muted)"># Build an app into a .cap bundle</span>
+cap build \
+  --manifest examples/hello-cap/Cap.toml \
+  --key ./keys/publisher.ed25519.sk.json \
+  --out hello-cap.cap
+
+<span style="color:var(--fg-muted)"># Inspect it</span>
+cap inspect hello-cap.cap
+
+<span style="color:var(--fg-muted)"># Verify the signature</span>
+cap verify hello-cap.cap --pubkey ./keys/publisher.ed25519.pk.json
+
+<span style="color:var(--fg-muted)"># Run it in the desktop runtime</span>
+cap run hello-cap.cap --pubkey ./keys/publisher.ed25519.pk.json</pre>
+    </section>
+
+    <section>
+      <h2>Capability model</h2>
+      <p>No ambient authority. Capabilities are declared in the app's manifest (<code>Cap.toml</code>) and enforced by the runtime:</p>
+      <ul>
+        <li><strong>network</strong> &mdash; HTTP requests to declared hosts</li>
+        <li><strong>filesystem</strong> &mdash; scoped read/write access</li>
+        <li><strong>kv_store</strong> &mdash; persistent key-value storage</li>
+        <li><strong>notifications</strong> &mdash; system notifications</li>
+        <li><strong>crypto_keystore</strong> &mdash; signing and encryption keys</li>
+        <li><strong>native_accel</strong> &mdash; hardware-accelerated compute</li>
+      </ul>
+      <p>If the manifest doesn't declare it, the runtime doesn't allow it.</p>
+    </section>
+
+    <section>
+      <h2>What this is (and isn't)</h2>
+      <p>CAP is an <strong>open format specification</strong> with a reference implementation. It is not a deployment platform, a hosted service, or a package registry. The closest analogs are Flatpak, Snap, or the WASI component model &mdash; standards for packaging and running software with explicit constraints.</p>
+      <p>The current implementation includes a CLI tool and a desktop runtime built on <a href="https://crates.io/crates/wry">wry</a> (system WebView). The format is designed for other runtimes to adopt &mdash; mobile, embedded, or browser-based.</p>
+      <p>This is early-stage work. The spec is usable, the tooling works, and the ideas are grounded. Contributions and feedback are welcome.</p>
+    </section>
+
+    <footer>
+      <p>CAP is dual-licensed under <a href="https://github.com/Hmbown/cap/blob/main/LICENSE-APACHE">Apache-2.0</a> or <a href="https://github.com/Hmbown/cap/blob/main/LICENSE-MIT">MIT</a>.</p>
+    </footer>
+  </div>
+</body>
+</html>

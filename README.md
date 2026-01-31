@@ -1,85 +1,67 @@
-# CAP — Capability Application Package (.cap)
+# CAP — Capability Application Package
 
-CAP is a **signed, content-addressed app bundle format** intended to be the “app file” for 2027:
-one artifact that can be **inspected, verified, cached, updated by delta**, and executed in a constrained
-runtime across **desktop, mobile, and web**.
+[![CI](https://github.com/Hmbown/cap/actions/workflows/ci.yml/badge.svg)](https://github.com/Hmbown/cap/actions/workflows/ci.yml)
 
-This repo includes:
+CAP is a **signed, content-addressed app bundle format**. A single `.cap` file can be inspected, verified, cached, delta-updated, and executed in a sandboxed runtime across desktop, mobile, and web.
 
-- `spec/` — a concrete CAP 1.0 spec (transport uses ZIP for now; canonical container can be upgraded later)
-- `crates/cap-format` — manifest/index/types + packaging + signing utilities
-- `crates/cap-cli` — `cap` CLI to generate keys, build/inspect/verify `.cap` files
-- `crates/cap-runtime-desktop` — reference desktop runtime using the **system WebView** via `wry`
-- `examples/hello-cap` — a minimal CAP app that uses:
-  - **UI**: plain HTML/JS
-  - **Core**: a tiny WebAssembly module (included prebuilt) that exposes a stable `cap_invoke` ABI
+**Status:** Early-stage specification and reference implementation. The format is usable today; the runtime and tooling are evolving.
 
-> Note: The runtime is a reference implementation. The format is designed so other shells (iOS/Android/Harmony)
-> can embed the same `.cap` and expose the same capability surface.
+## What's in a `.cap` file
 
----
+| Layer | Contents |
+|-------|----------|
+| **UI** | HTML/JS/CSS assets served via a custom protocol in a system WebView |
+| **Core** | Optional WASM module with a stable `cap_invoke` ABI |
+| **Metadata** | CBOR manifest + file index, Ed25519-signed root hash |
+| **Storage** | Content-addressed blobs (`blobs/<sha256>.zst`), individually zstd-compressed |
 
-## Quickstart (desktop)
+**Core principle:** No ambient authority. Every privileged operation (network, filesystem, KV store, keystore, notifications) must be declared in the manifest and is enforced by the runtime.
 
-### 0) Prereqs
-- Rust stable toolchain
-- Platform WebView deps as required by `wry` on your OS (see wry docs if Linux)
+## Quickstart
 
-### 1) Install the CLI (from this repo)
+Requires Rust stable. On Linux, also install `libwebkit2gtk-4.1-dev`.
+
 ```bash
+# Install the CLI
 cargo install --path crates/cap-cli
-```
 
-### 2) Generate a publisher keypair
-```bash
+# Generate a publisher keypair
 cap keys generate --out ./keys
-# produces:
-#   ./keys/publisher.ed25519.sk.json
-#   ./keys/publisher.ed25519.pk.json
-```
 
-### 3) Build the example app into a `.cap`
-```bash
+# Build the example app
 cap build \
   --manifest examples/hello-cap/Cap.toml \
   --key ./keys/publisher.ed25519.sk.json \
   --out ./examples/hello-cap/hello-cap.cap
+
+# Run in the desktop runtime
+cap run ./examples/hello-cap/hello-cap.cap \
+  --pubkey ./keys/publisher.ed25519.pk.json
 ```
-
-### 4) Run it
-```bash
-cap run ./examples/hello-cap/hello-cap.cap --pubkey ./keys/publisher.ed25519.pk.json
-```
-
----
-
-## What “CAP” means in practice
-
-A `.cap` file contains:
-
-- `ui/…` web assets (runs everywhere)
-- an optional portable `core/*.wasm` module (runs on desktop, mobile, and web)
-- `_cap/manifest.cbor` + `_cap/index.cbor` (signed metadata)
-- `blobs/<sha256>.zst` chunk store (content-addressed, compressed)
-
-### Core idea
-**No ambient authority.** Any privileged operation goes through an explicit capability declared in the manifest
-and enforced by the runtime shell.
-
----
 
 ## Repo layout
 
 ```
-spec/                     # format + capability grammar
-crates/cap-format/         # packager + signing + reader
-crates/cap-cli/            # `cap` command
-crates/cap-runtime-desktop/# reference runtime (wry custom protocol)
-crates/cap-core-sdk/       # ABI helpers for WASM cores (optional)
-examples/hello-cap/        # sample CAP app
+spec/                        # CAP 1.0 format specification
+crates/cap-format/           # Core library: manifest, index, packager, signer, reader, verifier
+crates/cap-cli/              # `cap` CLI (keys, build, inspect, verify, run)
+crates/cap-core-sdk/         # WASM ABI helpers for building CAP core modules
+crates/cap-runtime-desktop/  # Reference desktop runtime (wry WebView, cap:// protocol)
+examples/hello-cap/          # Minimal working CAP app
 ```
 
----
+The runtime is a reference implementation. The format is designed so that other runtimes (iOS, Android, embedded) can load the same `.cap` files and enforce the same capability model.
+
+## Running tests
+
+```bash
+cargo test --workspace
+```
+
+## Specification
+
+The full format spec lives in [`spec/CAP-1.0.md`](spec/CAP-1.0.md).
 
 ## License
-Dual-licensed under **Apache-2.0 OR MIT** (matching much of the Rust ecosystem).
+
+Dual-licensed under [Apache-2.0](LICENSE-APACHE) OR [MIT](LICENSE-MIT).
